@@ -25,9 +25,9 @@ async fn ws_handler(ws: Ws, svc: SignalingService) -> Result<impl Reply, Rejecti
 }
 
 async fn peer(ws: WebSocket, svc: SignalingService) {
-    println!("new incoming signaling connection");
-    match signaling_conn(ws, svc).await {
-        Ok(_) => println!("signaling connection stopped"),
-        Err(e) => eprintln!("signaling connection failed: {}", e),
-    }
+    // println!("new incoming signaling connection");
+    // match signaling_conn(ws, svc).await {
+    //     Ok(_) => println!("signaling connection stopped"),
+    //     Err(e) => eprintln!("signaling connection failed: {}", e),
+    // }
 }

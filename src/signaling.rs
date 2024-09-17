@@ -1,3 +1,5 @@
+use axum::extract::ws::{Message, WebSocket};
+use axum::Error;
 use futures_util::stream::SplitSink;
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
@@ -8,8 +10,6 @@ use std::time::Duration;
 use tokio::select;
 use tokio::sync::{Mutex, RwLock};
 use tokio::time::interval;
-use warp::ws::{Message, WebSocket};
-use warp::Error;
 
 const PING_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -173,7 +173,7 @@ pub async fn signaling_conn(ws: WebSocket, service: SignalingService) -> Result<
                     return Ok(());
                 } else {
                     state.pong_received = false;
-                    if let Err(e) = ws.try_send(Message::ping(Vec::default())).await {
+                    if let Err(e) = ws.try_send(Message::Ping(Vec::default())).await {
                         ws.close().await?;
                         return Err(e);
                     }
@@ -207,93 +207,98 @@ async fn process_msg(
     state: &mut ConnState,
     topics: &mut Topics,
 ) -> Result<(), Error> {
-    if msg.is_text() {
-        let json = msg.to_str().unwrap();
-        let msg = serde_json::from_str(json).unwrap();
-        match msg {
-            Signal::Subscribe {
-                topics: topic_names,
-            } => {
-                if !topic_names.is_empty() {
-                    let mut topics = topics.write().await;
-                    for topic in topic_names {
-                        tracing::trace!("subscribing new client to '{topic}'");
-                        if let Some((key, _)) = topics.get_key_value(topic) {
-                            state.subscribed_topics.insert(key.clone());
-                            let subs = topics.get_mut(topic).unwrap();
-                            subs.insert(ws.clone());
-                        } else {
-                            let topic: Arc<str> = topic.into();
-                            state.subscribed_topics.insert(topic.clone());
-                            let mut subs = HashSet::new();
-                            subs.insert(ws.clone());
-                            topics.insert(topic, subs);
-                        };
-                    }
-                }
-            }
-            Signal::Unsubscribe {
-                topics: topic_names,
-            } => {
-                if !topic_names.is_empty() {
-                    let mut topics = topics.write().await;
-                    for topic in topic_names {
-                        if let Some(subs) = topics.get_mut(topic) {
-                            tracing::trace!("unsubscribing client from '{topic}'");
-                            subs.remove(ws);
+    match msg {
+        Message::Text(json) => {
+            let msg = serde_json::from_str(&json).unwrap();
+            match msg {
+                Signal::Subscribe {
+                    topics: topic_names,
+                } => {
+                    if !topic_names.is_empty() {
+                        let mut topics = topics.write().await;
+                        for topic in topic_names {
+                            tracing::trace!("subscribing new client to '{topic}'");
+                            if let Some((key, _)) = topics.get_key_value(topic) {
+                                state.subscribed_topics.insert(key.clone());
+                                let subs = topics.get_mut(topic).unwrap();
+                                subs.insert(ws.clone());
+                            } else {
+                                let topic: Arc<str> = topic.into();
+                                state.subscribed_topics.insert(topic.clone());
+                                let mut subs = HashSet::new();
+                                subs.insert(ws.clone());
+                                topics.insert(topic, subs);
+                            };
                         }
                     }
                 }
-            }
-            Signal::Publish { topic } => {
-                let mut failed = Vec::new();
-                {
-                    let topics = topics.read().await;
-                    if let Some(receivers) = topics.get(topic) {
-                        let client_count = receivers.len();
-                        tracing::trace!(
-                            "publishing on {client_count} clients at '{topic}': {json}"
-                        );
-                        for receiver in receivers.iter() {
-                            if let Err(e) = receiver.try_send(Message::text(json)).await {
-                                tracing::info!(
-                                    "failed to publish message {json} on '{topic}': {e}"
-                                );
-                                failed.push(receiver.clone());
+                Signal::Unsubscribe {
+                    topics: topic_names,
+                } => {
+                    if !topic_names.is_empty() {
+                        let mut topics = topics.write().await;
+                        for topic in topic_names {
+                            if let Some(subs) = topics.get_mut(topic) {
+                                tracing::trace!("unsubscribing client from '{topic}'");
+                                subs.remove(ws);
                             }
                         }
                     }
                 }
-                if !failed.is_empty() {
-                    let mut topics = topics.write().await;
-                    if let Some(receivers) = topics.get_mut(topic) {
-                        for f in failed {
-                            receivers.remove(&f);
+                Signal::Publish { topic } => {
+                    let mut failed = Vec::new();
+                    {
+                        let topics = topics.read().await;
+                        if let Some(receivers) = topics.get(topic) {
+                            let client_count = receivers.len();
+                            tracing::trace!(
+                                "publishing on {client_count} clients at '{topic}': {json}"
+                            );
+                            for receiver in receivers.iter() {
+                                if let Err(e) = receiver.try_send(Message::Text(json.clone())).await
+                                {
+                                    tracing::info!(
+                                        "failed to publish message {json} on '{topic}': {e}"
+                                    );
+                                    failed.push(receiver.clone());
+                                }
+                            }
+                        }
+                    }
+                    if !failed.is_empty() {
+                        let mut topics = topics.write().await;
+                        if let Some(receivers) = topics.get_mut(topic) {
+                            for f in failed {
+                                receivers.remove(&f);
+                            }
                         }
                     }
                 }
-            }
-            Signal::Ping => {
-                ws.try_send(Message::text(PONG_MSG)).await?;
-            }
-            Signal::Pong => {
-                ws.try_send(Message::text(PING_MSG)).await?;
-            }
-        }
-    } else if msg.is_close() {
-        let mut topics = topics.write().await;
-        for topic in state.subscribed_topics.drain() {
-            if let Some(subs) = topics.get_mut(&topic) {
-                subs.remove(ws);
-                if subs.is_empty() {
-                    topics.remove(&topic);
+                Signal::Ping => {
+                    ws.try_send(Message::Text(PONG_MSG.to_string())).await?;
+                }
+                Signal::Pong => {
+                    ws.try_send(Message::Text(PING_MSG.to_string())).await?;
                 }
             }
         }
-        state.closed = true;
-    } else if msg.is_ping() {
-        ws.try_send(Message::ping(Vec::default())).await?;
-    }
+        Message::Close(_) => {
+            let mut topics = topics.write().await;
+            for topic in state.subscribed_topics.drain() {
+                if let Some(subs) = topics.get_mut(&topic) {
+                    subs.remove(ws);
+                    if subs.is_empty() {
+                        topics.remove(&topic);
+                    }
+                }
+            }
+        }
+        Message::Ping(_) => {
+            ws.try_send(Message::Ping(Vec::default())).await?;
+        }
+        _ => {}
+    };
+
     Ok(())
 }
 
