@@ -50,8 +50,8 @@ impl core::future::Future for AxumConn {
 /// use tokio::task::JoinHandle;
 /// use warp::{Filter, Rejection, Reply};
 /// use warp::ws::{WebSocket, Ws};
-/// use yrs_warp::broadcast::BroadcastGroup;
-/// use yrs_warp::ws::{WarpSink, WarpStream};
+/// use yrs_axum::broadcast::BroadcastGroup;
+/// use yrs_axum::ws::{WarpSink, WarpStream};
 ///
 /// async fn start_server(
 ///     addr: &str,
@@ -152,8 +152,8 @@ impl futures_util::Sink<Vec<u8>> for AxumSink {
 /// use tokio::task::JoinHandle;
 /// use warp::{Filter, Rejection, Reply};
 /// use warp::ws::{WebSocket, Ws};
-/// use yrs_warp::broadcast::BroadcastGroup;
-/// use yrs_warp::ws::{WarpSink, WarpStream};
+/// use yrs_axum::broadcast::BroadcastGroup;
+/// use yrs_axum::ws::{WarpSink, WarpStream};
 ///
 /// async fn start_server(
 ///     addr: &str,

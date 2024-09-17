@@ -1,6 +1,6 @@
 use warp::ws::{WebSocket, Ws};
 use warp::{Filter, Rejection, Reply};
-use yrs_warp::signaling::{signaling_conn, SignalingService};
+use yrs_axum::signaling::{signaling_conn, SignalingService};
 
 const STATIC_FILES_DIR: &str = "examples/webrtc-signaling-server/frontend/dist";
 

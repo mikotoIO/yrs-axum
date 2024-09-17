@@ -1,13 +1,13 @@
 [package]
-name = "yrs-warp"
-version = "0.8.0"
+name = "yrs-axum"
+version = "0.1.0"
 edition = "2021"
-description = "Yrs synchronization protocol using Warp web sockets"
+description = "Yrs synchronization protocol using Axum Websockets"
 license = "MIT"
 authors = ["Bartosz Sypytkowski <b.sypytkowski@gmail.com>"]
 keywords = ["crdt", "yrs", "warp"]
-homepage = "https://github.com/y-crdt/yrs-warp/"
-repository = "https://github.com/y-crdt/yrs-warp/"
+homepage = "https://github.com/mikotoIO/yrs-axum/"
+repository = "https://github.com/mikotoIO/yrs-axum/"
 readme = "./README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -27,3 +27,4 @@ tokio-tungstenite = "0.21"
 tokio = { version = "1", features = ["full"] }
 bytes = "1.6"
 warp = "0.3"
+tower-http = { version = "0.5.0", features = ["fs", "trace"] }
